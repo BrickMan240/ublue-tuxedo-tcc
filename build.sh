@@ -38,10 +38,38 @@ make -C /lib/modules/${KERNEL_VERSION}/build M=$(pwd) modules
 # Install the built modules
 make -C /lib/modules/${KERNEL_VERSION}/build M=$(pwd) modules_install
 
-# Sign the modules for Secure Boot compatibility
-for module in $(find /lib/modules/${KERNEL_VERSION}/updates -name "*.ko" 2>/dev/null); do
-    /usr/src/kernels/${KERNEL_VERSION}/scripts/sign-file sha256 /usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.pem /usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.x509 "$module" 2>/dev/null || true
+# Sign the modules for Secure Boot compatibility using Aurora's keys
+# Look for existing signing keys in the system
+SIGNING_KEY=""
+SIGNING_CERT=""
+
+# Try to find existing signing keys
+for key_path in "/usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.pem" "/etc/pki/akmods/certs/signing_key.pem" "/var/lib/dkms/signing_key.pem"; do
+    if [ -f "$key_path" ]; then
+        SIGNING_KEY="$key_path"
+        SIGNING_CERT="${key_path%.pem}.x509"
+        break
+    fi
 done
+
+# If no existing keys found, try to use the kernel's built-in keys
+if [ -z "$SIGNING_KEY" ]; then
+    # Use the kernel's default signing keys if available
+    if [ -f "/usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.pem" ]; then
+        SIGNING_KEY="/usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.pem"
+        SIGNING_CERT="/usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.x509"
+    fi
+fi
+
+# Sign all built modules if keys are available
+if [ -n "$SIGNING_KEY" ] && [ -f "$SIGNING_KEY" ] && [ -f "$SIGNING_CERT" ]; then
+    echo "Signing modules with existing keys: $SIGNING_KEY"
+    for module in $(find /lib/modules/${KERNEL_VERSION}/updates -name "*.ko" 2>/dev/null); do
+        /usr/src/kernels/${KERNEL_VERSION}/scripts/sign-file sha256 "$SIGNING_KEY" "$SIGNING_CERT" "$module" 2>/dev/null || true
+    done
+else
+    echo "No signing keys found - modules will be unsigned (Secure Boot may reject them)"
+fi
 
 # Clean up
 cd /
