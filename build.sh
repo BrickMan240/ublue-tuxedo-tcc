@@ -17,11 +17,27 @@ rpm-ostree install screen
 
 #Exec perms for symlink script
 chmod +x /usr/bin/fixtuxedo
+chmod +x /usr/bin/load-tuxedo-modules
 #And autorun
 systemctl enable /etc/systemd/system/fixtuxedo.service
+systemctl enable /etc/systemd/system/tuxedo-modules.service
 
 # Install tuxedo drivers from official repository
 rpm-ostree install tuxedo-drivers
+
+# Prebuild kernel modules for this system
+KERNEL_VERSION="$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')"
+
+# Build the modules manually
+cd /usr/src/tuxedo-drivers-4.15.4
+
+# Build all available modules
+make -C /lib/modules/${KERNEL_VERSION}/build M=$(pwd) modules
+
+# Install the built modules
+make -C /lib/modules/${KERNEL_VERSION}/build M=$(pwd) modules_install
+
+cd /
 
 #Hacky workaround to make TCC install elsewhere
 mkdir -p /usr/share
