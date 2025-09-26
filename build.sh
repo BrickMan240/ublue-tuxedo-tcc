@@ -38,38 +38,29 @@ make -C /lib/modules/${KERNEL_VERSION}/build M=$(pwd) modules
 # Install the built modules
 make -C /lib/modules/${KERNEL_VERSION}/build M=$(pwd) modules_install
 
-# Sign the modules for Secure Boot compatibility using Aurora's keys
-# Look for existing signing keys in the system
-SIGNING_KEY=""
-SIGNING_CERT=""
+# Generate MOK (Machine Owner Key) for Secure Boot module signing
+echo "Generating MOK keys for Secure Boot compatibility..."
 
-# Try to find existing signing keys
-for key_path in "/usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.pem" "/etc/pki/akmods/certs/signing_key.pem" "/var/lib/dkms/signing_key.pem"; do
-    if [ -f "$key_path" ]; then
-        SIGNING_KEY="$key_path"
-        SIGNING_CERT="${key_path%.pem}.x509"
-        break
-    fi
+# Create directory for MOK keys
+mkdir -p /etc/pki/akmods/certs
+
+# Generate private key
+openssl req -new -x509 -newkey rsa:2048 -keyout /etc/pki/akmods/certs/signing_key.pem -out /etc/pki/akmods/certs/signing_key.x509 -outform DER -days 36500 -subj "/CN=Tuxedo Modules/" -nodes
+
+# Convert to PEM format for the certificate
+openssl x509 -inform DER -in /etc/pki/akmods/certs/signing_key.x509 -out /etc/pki/akmods/certs/signing_key.x509.pem
+
+# Set proper permissions
+chmod 600 /etc/pki/akmods/certs/signing_key.pem
+chmod 644 /etc/pki/akmods/certs/signing_key.x509*
+
+# Sign all built modules with the generated MOK
+echo "Signing modules with generated MOK keys..."
+for module in $(find /lib/modules/${KERNEL_VERSION}/updates -name "*.ko" 2>/dev/null); do
+    /usr/src/kernels/${KERNEL_VERSION}/scripts/sign-file sha256 /etc/pki/akmods/certs/signing_key.pem /etc/pki/akmods/certs/signing_key.x509.pem "$module" 2>/dev/null || true
 done
 
-# If no existing keys found, try to use the kernel's built-in keys
-if [ -z "$SIGNING_KEY" ]; then
-    # Use the kernel's default signing keys if available
-    if [ -f "/usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.pem" ]; then
-        SIGNING_KEY="/usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.pem"
-        SIGNING_CERT="/usr/src/kernels/${KERNEL_VERSION}/certs/signing_key.x509"
-    fi
-fi
-
-# Sign all built modules if keys are available
-if [ -n "$SIGNING_KEY" ] && [ -f "$SIGNING_KEY" ] && [ -f "$SIGNING_CERT" ]; then
-    echo "Signing modules with existing keys: $SIGNING_KEY"
-    for module in $(find /lib/modules/${KERNEL_VERSION}/updates -name "*.ko" 2>/dev/null); do
-        /usr/src/kernels/${KERNEL_VERSION}/scripts/sign-file sha256 "$SIGNING_KEY" "$SIGNING_CERT" "$module" 2>/dev/null || true
-    done
-else
-    echo "No signing keys found - modules will be unsigned (Secure Boot may reject them)"
-fi
+echo "Modules signed with MOK keys. Users will need to enroll the MOK key in Secure Boot."
 
 # Clean up
 cd /
