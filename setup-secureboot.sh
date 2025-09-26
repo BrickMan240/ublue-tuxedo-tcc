@@ -67,11 +67,11 @@ if command -v mokutil >/dev/null 2>&1; then
     echo "To enroll the MOK key for Secure Boot:"
     echo ""
     echo "1. Run the following command to import the MOK key:"
-    echo "   sudo mokutil --import /etc/pki/akmods/certs/signing_key.x509"
+    echo "   echo -e 'tuxedo\ntuxedo' | sudo mokutil --import /etc/pki/akmods/certs/signing_key.x509"
     echo ""
     echo "2. Reboot your system"
     echo "3. During boot, you should see a blue MOK management screen"
-    echo "4. Follow the prompts to enroll the key"
+    echo "4. Enter 'tuxedo' when prompted for the MOK password"
     echo "5. Reboot again to complete the process"
     echo ""
     echo "If you don't see the MOK management screen:"
@@ -84,15 +84,21 @@ if command -v mokutil >/dev/null 2>&1; then
     echo "Would you like to proceed with MOK enrollment now? (y/n)"
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
-        echo "Importing MOK key..."
-        mokutil --import /etc/pki/akmods/certs/signing_key.x509
+        echo "Importing MOK key with password 'tuxedo'..."
+        echo "You will need to enter 'tuxedo' during the MOK management screen at boot."
         echo ""
-        echo "MOK key imported successfully!"
-        echo "Please reboot your system to complete the enrollment process."
-        echo "After reboot, follow the MOK management prompts."
+        if echo -e "tuxedo\ntuxedo" | mokutil --import /etc/pki/akmods/certs/signing_key.x509; then
+            echo "✓ MOK key imported successfully!"
+            echo "Please reboot your system to complete the enrollment process."
+            echo "During boot, enter 'tuxedo' when prompted for the MOK password."
+        else
+            echo "❌ Failed to import MOK key. Please try running manually:"
+            echo "   echo -e 'tuxedo\ntuxedo' | sudo mokutil --import /etc/pki/akmods/certs/signing_key.x509"
+        fi
+        echo ""
     else
         echo "You can run the enrollment later with:"
-        echo "sudo mokutil --import /etc/pki/akmods/certs/signing_key.x509"
+        echo "echo -e 'tuxedo\ntuxedo' | sudo mokutil --import /etc/pki/akmods/certs/signing_key.x509"
     fi
 else
     echo "=== MOK Enrollment Instructions ==="

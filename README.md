@@ -33,11 +33,11 @@ systemctl reboot
 These images include pre-built and signed Tuxedo kernel modules using MOK (Machine Owner Key) signing. For Secure Boot compatibility, you need to enroll the MOK key:
 
 1. After rebasing, run: `sudo /usr/bin/setup-secureboot`
-2. The script will automatically import the MOK key using `mokutil`
-3. Reboot and follow the MOK enrollment prompts during boot
+2. The script will automatically import the MOK key using `mokutil` with password "tuxedo"
+3. Reboot and enter "tuxedo" when prompted for the MOK password during boot
 4. Reboot again to complete the process
 
-The setup script handles the entire process automatically.
+The setup script handles the entire process automatically with the hardcoded password "tuxedo".
 
 ## Features
 
@@ -55,6 +55,7 @@ If Tuxedo Control Center doesn't detect your hardware:
 3. Check system logs: `journalctl -u tuxedo-modules.service`
 4. If modules fail to load with "Operation not permitted", run: `sudo /usr/bin/setup-secureboot`
 5. If mokutil is not available, manually copy the certificate to /boot/ and enroll via MOK screen
+6. For manual MOK enrollment, use: `echo -e 'tuxedo\ntuxedo' | sudo mokutil --import /etc/pki/akmods/certs/signing_key.x509`
 
 ## Building from Source
 
