@@ -17,36 +17,54 @@ rpm-ostree install screen
 
 #Exec perms for symlink script
 chmod +x /usr/bin/fixtuxedo
+chmod +x /usr/bin/load-tuxedo-modules
 #And autorun
 systemctl enable /etc/systemd/system/fixtuxedo.service
+systemctl enable /etc/systemd/system/tuxedo-modules.service
 
-#Build and install tuxedo drivers
-rpm-ostree install rpm-build
-rpm-ostree install rpmdevtools
-rpm-ostree install kmodtool
+# Install tuxedo drivers from official repository
+rpm-ostree install tuxedo-drivers
 
-export HOME=/tmp
-
-cd /tmp
-
-rpmdev-setuptree
-
-git clone https://github.com/BrickMan240/tuxedo-drivers-kmod
-
-cd tuxedo-drivers-kmod/
-git checkout update-to-4.14.1
-./build.sh
-cd ..
-
-# Extract the Version value from the spec file
-export TD_VERSION=$(cat tuxedo-drivers-kmod/tuxedo-drivers-kmod-common.spec | grep -E '^Version:' | awk '{print $2}')
-
-
-rpm-ostree install ~/rpmbuild/RPMS/x86_64/akmod-tuxedo-drivers-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/tuxedo-drivers-kmod-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/tuxedo-drivers-kmod-common-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/kmod-tuxedo-drivers-$TD_VERSION-1.fc42.x86_64.rpm
-
+# Prebuild kernel modules for this system
 KERNEL_VERSION="$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')"
 
-akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
+# Copy source to writable location and build modules
+cp -r /usr/src/tuxedo-drivers-4.15.4 /tmp/tuxedo-drivers-build
+cd /tmp/tuxedo-drivers-build
+
+# Build all available modules
+make -C /lib/modules/${KERNEL_VERSION}/build M=$(pwd) modules
+
+# Install the built modules
+make -C /lib/modules/${KERNEL_VERSION}/build M=$(pwd) modules_install
+
+# Generate MOK (Machine Owner Key) for Secure Boot module signing
+echo "Generating MOK keys for Secure Boot compatibility..."
+
+# Create directory for MOK keys
+mkdir -p /etc/pki/akmods/certs
+
+# Generate private key
+openssl req -new -x509 -newkey rsa:2048 -keyout /etc/pki/akmods/certs/signing_key.pem -out /etc/pki/akmods/certs/signing_key.x509 -outform DER -days 36500 -subj "/CN=Tuxedo Modules/" -nodes
+
+# Convert to PEM format for the certificate
+openssl x509 -inform DER -in /etc/pki/akmods/certs/signing_key.x509 -out /etc/pki/akmods/certs/signing_key.x509.pem
+
+# Set proper permissions
+chmod 600 /etc/pki/akmods/certs/signing_key.pem
+chmod 644 /etc/pki/akmods/certs/signing_key.x509*
+
+# Sign all built modules with the generated MOK
+echo "Signing modules with generated MOK keys..."
+for module in $(find /lib/modules/${KERNEL_VERSION}/updates -name "*.ko" 2>/dev/null); do
+    /usr/src/kernels/${KERNEL_VERSION}/scripts/sign-file sha256 /etc/pki/akmods/certs/signing_key.pem /etc/pki/akmods/certs/signing_key.x509.pem "$module" 2>/dev/null || true
+done
+
+echo "Modules signed with MOK keys. Users will need to enroll the MOK key in Secure Boot."
+
+# Clean up
+cd /
+rm -rf /tmp/tuxedo-drivers-build
 
 #Hacky workaround to make TCC install elsewhere
 mkdir -p /usr/share

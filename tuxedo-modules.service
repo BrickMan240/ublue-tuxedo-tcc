@@ -1,0 +1,11 @@
+[Unit]
+Description=Load Tuxedo kernel modules
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/load-tuxedo-modules
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

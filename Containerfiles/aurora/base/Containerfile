@@ -51,6 +51,9 @@ FROM ghcr.io/ublue-os/${SOURCE_IMAGE}${SOURCE_SUFFIX}:${SOURCE_TAG}
 COPY tuxedo.repo /etc/yum.repos.d/tuxedo.repo
 COPY fixtuxedo /usr/bin/fixtuxedo
 COPY fixtuxedo.service /etc/systemd/system/fixtuxedo.service
+COPY load-tuxedo-modules /usr/bin/load-tuxedo-modules
+COPY tuxedo-modules.service /etc/systemd/system/tuxedo-modules.service
+COPY setup-secureboot.sh /usr/bin/setup-secureboot
 
 COPY build.sh /tmp/build.sh
 

@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Load Tuxedo kernel modules for all supported models
+
+# Load core modules
+modprobe clevo_acpi 2>/dev/null || true
+modprobe clevo_wmi 2>/dev/null || true
+modprobe tuxedo_keyboard 2>/dev/null || true
+modprobe uniwill_wmi 2>/dev/null || true
+modprobe tuxedo_io 2>/dev/null || true
+modprobe tuxedo_compatibility_check 2>/dev/null || true
+
+# Load NB04 model modules
+modprobe tuxedo_nb04_keyboard 2>/dev/null || true
+modprobe tuxedo_nb04_wmi_ab 2>/dev/null || true
+modprobe tuxedo_nb04_wmi_bs 2>/dev/null || true
+modprobe tuxedo_nb04_sensors 2>/dev/null || true
+modprobe tuxedo_nb04_power_profiles 2>/dev/null || true
+modprobe tuxedo_nb04_kbd_backlight 2>/dev/null || true
+
+# Load NB05 model modules
+modprobe tuxedo_nb05_keyboard 2>/dev/null || true
+modprobe tuxedo_nb05_power_profiles 2>/dev/null || true
+modprobe tuxedo_nb05_ec 2>/dev/null || true
+modprobe tuxedo_nb05_sensors 2>/dev/null || true
+modprobe tuxedo_nb05_kbd_backlight 2>/dev/null || true
+modprobe tuxedo_nb05_fan_control 2>/dev/null || true
+
+# Load other model modules as they become available
+modprobe tuxedo_nb06_keyboard 2>/dev/null || true
+modprobe tuxedo_nb06_power_profiles 2>/dev/null || true
+modprobe tuxedo_nb06_ec 2>/dev/null || true
+modprobe tuxedo_nb06_sensors 2>/dev/null || true
+modprobe tuxedo_nb06_kbd_backlight 2>/dev/null || true
+modprobe tuxedo_nb06_fan_control 2>/dev/null || true
+
+exit 0
