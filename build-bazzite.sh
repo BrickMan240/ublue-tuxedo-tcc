@@ -20,6 +20,8 @@ chmod +x /usr/bin/fixtuxedo
 #And autorun
 systemctl enable /etc/systemd/system/fixtuxedo.service
 
+# Install tuxedo drivers from official repository
+rpm-ostree install tuxedo-drivers
 
 #Hacky workaround to make TCC install elsewhere
 mkdir -p /usr/share
