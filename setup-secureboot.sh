@@ -18,9 +18,9 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Check if Secure Boot is enabled
-if [ -d /sys/firmware/efi/efivars ] && [ -f /sys/firmware/efi/efivars/SecureBoot-* ]; then
-    SECURE_BOOT=$(cat /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | od -An -t u1 | awk '{print $1}')
-    if [ "$SECURE_BOOT" = "1" ]; then
+if command -v mokutil >/dev/null 2>&1; then
+    SECURE_BOOT_STATUS=$(mokutil --sb-state 2>/dev/null | grep -i "secureboot")
+    if echo "$SECURE_BOOT_STATUS" | grep -qi "enabled"; then
         echo "✓ Secure Boot is enabled"
     else
         echo "⚠ Secure Boot is disabled - no MOK enrollment needed"
@@ -28,8 +28,26 @@ if [ -d /sys/firmware/efi/efivars ] && [ -f /sys/firmware/efi/efivars/SecureBoot
         exit 0
     fi
 else
-    echo "⚠ Cannot determine Secure Boot status"
-    echo "Proceeding with MOK enrollment instructions..."
+    # Fallback to EFI variable check
+    if [ -d /sys/firmware/efi/efivars ]; then
+        SECURE_BOOT_FILE=$(find /sys/firmware/efi/efivars -name "SecureBoot-*" 2>/dev/null | head -1)
+        if [ -n "$SECURE_BOOT_FILE" ] && [ -f "$SECURE_BOOT_FILE" ]; then
+            SECURE_BOOT=$(cat "$SECURE_BOOT_FILE" 2>/dev/null | od -An -t u1 | awk '{print $1}')
+            if [ "$SECURE_BOOT" = "1" ]; then
+                echo "✓ Secure Boot is enabled"
+            else
+                echo "⚠ Secure Boot is disabled - no MOK enrollment needed"
+                echo "The Tuxedo modules should work without additional setup."
+                exit 0
+            fi
+        else
+            echo "⚠ Cannot determine Secure Boot status"
+            echo "Proceeding with MOK enrollment instructions..."
+        fi
+    else
+        echo "⚠ Cannot determine Secure Boot status"
+        echo "Proceeding with MOK enrollment instructions..."
+    fi
 fi
 
 # Check if MOK key exists
