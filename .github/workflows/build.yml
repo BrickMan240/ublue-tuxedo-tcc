@@ -23,8 +23,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-aurora-updates:
+    name: Check for Aurora Updates
+    runs-on: ubuntu-24.04
+    outputs:
+      has-updates: ${{ steps.check-updates.outputs.has-updates }}
+      aurora-digest: ${{ steps.check-updates.outputs.aurora-digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Check for Aurora updates
+        id: check-updates
+        run: |
+          # Get current Aurora image digest
+          AURORA_IMAGE="ghcr.io/ublue-os/aurora:latest"
+          CURRENT_DIGEST=$(skopeo inspect docker://$AURORA_IMAGE --format "{{.Digest}}" 2>/dev/null || echo "")
+          
+          if [ -z "$CURRENT_DIGEST" ]; then
+            echo "Could not fetch Aurora digest, proceeding with build"
+            echo "has-updates=true" >> $GITHUB_OUTPUT
+            echo "aurora-digest=unknown" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Get last known digest from previous build
+          LAST_DIGEST=""
+          if [ -f ".aurora-digest" ]; then
+            LAST_DIGEST=$(cat .aurora-digest)
+          fi
+          
+          echo "Current Aurora digest: $CURRENT_DIGEST"
+          echo "Last known digest: $LAST_DIGEST"
+          
+          # Check if digest changed
+          if [ "$CURRENT_DIGEST" != "$LAST_DIGEST" ]; then
+            echo "Aurora has updates, proceeding with build"
+            echo "has-updates=true" >> $GITHUB_OUTPUT
+            echo "aurora-digest=$CURRENT_DIGEST" >> $GITHUB_OUTPUT
+            echo "$CURRENT_DIGEST" > .aurora-digest
+          else
+            echo "No Aurora updates, skipping build"
+            echo "has-updates=false" >> $GITHUB_OUTPUT
+            echo "aurora-digest=$CURRENT_DIGEST" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit digest file
+        if: steps.check-updates.outputs.has-updates == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .aurora-digest
+          git commit -m "Update Aurora digest: ${{ steps.check-updates.outputs.aurora-digest }}" || exit 0
+          git push || exit 0
+
   generate-matrix:
     name: Generate Build Matrix
+    needs: check-aurora-updates
+    if: needs.check-aurora-updates.outputs.has-updates == 'true' || github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -82,7 +138,7 @@ jobs:
 
   build_push:
     name: Build and push images
-    needs: generate-matrix
+    needs: [check-aurora-updates, generate-matrix]
     runs-on: ubuntu-24.04
     strategy:
       matrix:
